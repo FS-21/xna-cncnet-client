@@ -44,7 +44,7 @@ namespace ClientGUI.Settings
             set
             {
                 _parentCheckBoxName = value;
-                UpdateParentCheckBox(FindParentCheckBox());
+                UpdateParentCheckBox(UIHelpers.FindMatchingChild<XNAClientCheckBox>(Parent, _parentCheckBoxName, false));
             }
         }
 
@@ -102,21 +102,6 @@ namespace ClientGUI.Settings
         public abstract void Load();
 
         public abstract bool Save();
-
-
-        private XNAClientCheckBox FindParentCheckBox()
-        {
-            if (string.IsNullOrEmpty(ParentCheckBoxName))
-                return null;
-
-            foreach (var control in Parent.Children)
-            {
-                if (control is XNAClientCheckBox && control.Name == ParentCheckBoxName)
-                    return control as XNAClientCheckBox;
-            }
-
-            return null;
-        }
 
         private void UpdateParentCheckBox(XNAClientCheckBox parentCheckBox)
         {

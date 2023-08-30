@@ -493,6 +493,7 @@ Valid file operation options available for files defined for `FileSettingCheckBo
 Dynamic Control Properties CAN use constants.
 
 These can ONLY be used in parent controls that inherit the `INItializableWindow` class.
+`$ToggleableControl` = ``{control name}`` (only on `XNAClientButton` or derived classes) Name of control whose visibility this button toggles, only works if the target control is initialized before the button and is not the parent window
 
 ```ini
 $X=10            ; integer, the X location of the control  
