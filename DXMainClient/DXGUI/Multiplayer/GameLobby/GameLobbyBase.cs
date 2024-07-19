@@ -172,7 +172,7 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
         protected bool RemoveStartingLocations { get; set; } = false;
         protected IniFile GameOptionsIni { get; private set; }
 
-        protected XNAClientButton BtnSaveLoadGameOptions { get; set; }
+        protected XNAClientButton btnSaveLoadGameOptions { get; set; }
 
         private XNAContextMenu loadSaveGameOptionsMenu { get; set; }
 
@@ -309,9 +309,9 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
 
         private void InitializeGameOptionPresetUI()
         {
-            BtnSaveLoadGameOptions = FindChild<XNAClientButton>(nameof(BtnSaveLoadGameOptions), true);
+            btnSaveLoadGameOptions = FindChild<XNAClientButton>(nameof(btnSaveLoadGameOptions), true);
 
-            if (BtnSaveLoadGameOptions != null)
+            if (btnSaveLoadGameOptions != null)
             {
                 loadOrSaveGameOptionPresetWindow = new LoadOrSaveGameOptionPresetWindow(WindowManager);
                 loadOrSaveGameOptionPresetWindow.Name = nameof(loadOrSaveGameOptionPresetWindow);
@@ -335,7 +335,7 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
                 loadSaveGameOptionsMenu.Items.Add(loadConfigMenuItem);
                 loadSaveGameOptionsMenu.Items.Add(saveConfigMenuItem);
 
-                BtnSaveLoadGameOptions.LeftClick += (sender, args) =>
+                btnSaveLoadGameOptions.LeftClick += (sender, args) =>
                     loadSaveGameOptionsMenu.Open(GetCursorPoint());
 
                 AddChild(loadSaveGameOptionsMenu);
@@ -573,7 +573,12 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
 
                 lbGameModeMapList.AddItem(mapInfoArray);
 
+                // Preserve the selected map
                 if (gameModeMap == GameModeMap)
+                    mapIndex = i - skippedMapsCount;
+
+                // Preserve the selected map, even if the game mode has changed
+                if (mapIndex == -1 && (gameModeMap?.Map?.Equals(GameModeMap?.Map) ?? false))
                     mapIndex = i - skippedMapsCount;
             }
 
@@ -585,6 +590,8 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
             }
 
             lbGameModeMapList.SelectedIndexChanged += LbGameModeMapList_SelectedIndexChanged;
+            // Trigger the event manually to update GameModeMap
+            LbGameModeMapList_SelectedIndexChanged();
         }
 
         protected abstract int GetDefaultMapRankIndex(GameModeMap gameModeMap);
@@ -664,13 +671,13 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
             }
             catch (IOException ex)
             {
-                Logger.Log($"Deleting map {Map.BaseFilePath} failed! Message: {ex.Message}");
+                Logger.Log($"Deleting map {Map.BaseFilePath} failed! Message: {ex.ToString()}");
                 XNAMessageBox.Show(WindowManager, "Deleting Map Failed".L10N("Client:Main:DeleteMapFailedTitle"),
                     "Deleting map failed! Reason:".L10N("Client:Main:DeleteMapFailedText") + " " + ex.Message);
             }
         }
 
-        private void LbGameModeMapList_SelectedIndexChanged(object sender, EventArgs e)
+        private void LbGameModeMapList_SelectedIndexChanged()
         {
             if (lbGameModeMapList.SelectedIndex < 0 || lbGameModeMapList.SelectedIndex >= lbGameModeMapList.ItemCount)
             {
@@ -680,10 +687,13 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
 
             XNAListBoxItem item = lbGameModeMapList.GetItem(1, lbGameModeMapList.SelectedIndex);
 
-            GameModeMap = (GameModeMap)item.Tag;
+            GameModeMap gameModeMap = (GameModeMap)item.Tag;
 
-            ChangeMap(GameModeMap);
+            ChangeMap(gameModeMap);
         }
+
+        private void LbGameModeMapList_SelectedIndexChanged(object sender, EventArgs e)
+            => LbGameModeMapList_SelectedIndexChanged();
 
         private void LbGameModeMapList_HoveredIndexChanged(object sender, EventArgs e)
         {
@@ -1618,18 +1628,18 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
                     File.Copy(file, SafePath.CombineFilePath(ProgramConstants.GamePath, supplementalFileName), true);
                     supplementalFileNames.Add(supplementalFileName);
                 }
-                catch (Exception e)
+                catch (Exception ex)
                 {
                     string errorMessage = "Unable to copy supplemental map file".L10N("Client:Main:SupplementalFileCopyError") + $" {file}";
                     Logger.Log(errorMessage);
-                    Logger.Log(e.Message);
+                    Logger.Log(ex.ToString());
                     XNAMessageBox.Show(WindowManager, "Error".L10N("Client:Main:Error"), errorMessage);
                     
                 }
             }
             
             // Write the supplemental map files to the INI (eventual spawnmap.ini)
-            mapIni.SetStringValue("Basic", "SupplementalFiles", string.Join(',', supplementalFileNames));
+            mapIni.SetStringValue("Basic", "SupplementalFiles", string.Join(",", supplementalFileNames));
         }
 
         /// <summary>
@@ -1647,11 +1657,11 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
                 {
                     File.Delete(supplementalMapFilename);
                 }
-                catch (Exception e)
+                catch (Exception ex)
                 {
                     string errorMessage = "Unable to delete supplemental map file".L10N("Client:Main:SupplementalFileDeleteError") + $" {supplementalMapFilename}";
                     Logger.Log(errorMessage);
-                    Logger.Log(e.Message);
+                    Logger.Log(ex.ToString());
                     XNAMessageBox.Show(WindowManager, "Error".L10N("Client:Main:Error"), errorMessage);
                 }
             }

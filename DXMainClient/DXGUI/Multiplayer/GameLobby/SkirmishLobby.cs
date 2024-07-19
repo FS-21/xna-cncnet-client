@@ -181,10 +181,10 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
 
         protected override void BtnLeaveGame_LeftClick(object sender, EventArgs e)
         {
-            this.Enabled = false;
-            this.Visible = false;
-
             Exited?.Invoke(this, EventArgs.Empty);
+
+            PlayerExtraOptionsPanel?.Disable();
+            Disable();
 
             topBar.RemovePrimarySwitchable(this);
             ResetDiscordPresence();
@@ -296,7 +296,7 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
             }
             catch (Exception ex)
             {
-                Logger.Log("Saving skirmish settings failed! Reason: " + ex.Message);
+                Logger.Log("Saving skirmish settings failed! Reason: " + ex.ToString());
             }
         }
 

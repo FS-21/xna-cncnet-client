@@ -88,6 +88,7 @@ namespace DTAClient.DXGUI
             }
             catch (Exception ex)
             {
+                // TODO Get English exception message
                 if (ex.Message.Contains("DeviceRemoved"))
                 {
                     Logger.Log($"Creating texture on startup failed! Creating {startupFailureFile} file and re-launching client launcher.");
@@ -131,7 +132,7 @@ namespace DTAClient.DXGUI
 
             wm.ControlINIAttributeParsers.Add(new TranslationINIParser());
 
-            ProgramConstants.DisplayErrorAction = (title, error, exit) =>
+            MainClientConstants.DisplayErrorAction = (title, error, exit) =>
             {
                 new XNAMessageBox(wm, title, error, XNAMessageBoxButtons.OK)
                 {
@@ -245,6 +246,7 @@ namespace DTAClient.DXGUI
                             .AddTransientXnaControl<XNADropDown>()
                             .AddTransientXnaControl<XNALabel>()
                             .AddTransientXnaControl<XNALinkLabel>()
+                            .AddTransientXnaControl<XNAClientLinkLabel>()
                             .AddTransientXnaControl<XNAListBox>()
                             .AddTransientXnaControl<XNAMultiColumnListBox>()
                             .AddTransientXnaControl<XNAPanel>()

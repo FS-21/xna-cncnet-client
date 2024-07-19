@@ -7,6 +7,7 @@ using Rampastring.Tools;
 using ClientCore.INIProcessing;
 using System.Threading;
 using Rampastring.XNAUI;
+using ClientCore.Extensions;
 
 namespace ClientGUI
 {
@@ -79,6 +80,7 @@ namespace ClientGUI
                 Logger.Log("Windowed mode is enabled - using QRes.");
                 Process QResProcess = new Process();
                 QResProcess.StartInfo.FileName = ProgramConstants.QRES_EXECUTABLE;
+                QResProcess.StartInfo.UseShellExecute = false;
 
                 if (!string.IsNullOrEmpty(extraCommandLine))
                     QResProcess.StartInfo.Arguments = "c=16 /R " + "\"" + SafePath.CombineFilePath(ProgramConstants.GamePath, gameExecutableName) + "\" " + additionalExecutableName + "-SPAWN " + extraCommandLine;
@@ -94,10 +96,12 @@ namespace ClientGUI
                 }
                 catch (Exception ex)
                 {
-                    Logger.Log("Error launching QRes: " + ex.Message);
-                    XNAMessageBox.Show(windowManager, "Error launching game", "Error launching " + ProgramConstants.QRES_EXECUTABLE + ". Please check that your anti-virus isn't blocking the CnCNet Client. " +
-                        "You can also try running the client as an administrator." + Environment.NewLine + Environment.NewLine + "You are unable to participate in this match." +
-                        Environment.NewLine + Environment.NewLine + "Returned error: " + ex.Message);
+                    Logger.Log("Error launching QRes: " + ex.ToString());
+                    XNAMessageBox.Show(windowManager,
+                        "Error launching game".L10N("Client:ClientGUI:ErrorLaunchQresTitle"),
+                        string.Format("Error launching {0}. Please check that your anti-virus isn't blocking the CnCNet Client. " +
+                        "You can also try running the client as an administrator.\n\nYou are unable to participate in this match. \n\n" +
+                        "Returned error: {1}".L10N("Client:ClientGUI:ErrorLaunchQresText"), ProgramConstants.QRES_EXECUTABLE, ex.Message));
                     Process_Exited(QResProcess, EventArgs.Empty);
                     return;
                 }
@@ -119,6 +123,7 @@ namespace ClientGUI
                 var gameProcess = new Process();
                 gameProcess.StartInfo.FileName = gameFileInfo.FullName;
                 gameProcess.StartInfo.Arguments = arguments;
+                gameProcess.StartInfo.UseShellExecute = false;
 
                 gameProcess.EnableRaisingEvents = true;
                 gameProcess.Exited += Process_Exited;
@@ -133,7 +138,7 @@ namespace ClientGUI
                 }
                 catch (Exception ex)
                 {
-                    Logger.Log("Error launching " + gameFileInfo.Name + ": " + ex.Message);
+                    Logger.Log("Error launching " + gameFileInfo.Name + ": " + ex.ToString());
                     XNAMessageBox.Show(windowManager, "Error launching game", "Error launching " + gameFileInfo.Name + ". Please check that your anti-virus isn't blocking the CnCNet Client. " +
                         "You can also try running the client as an administrator." + Environment.NewLine + Environment.NewLine + "You are unable to participate in this match." +
                         Environment.NewLine + Environment.NewLine + "Returned error: " + ex.Message);
@@ -144,7 +149,7 @@ namespace ClientGUI
                 if ((RuntimeInformation.IsOSPlatform(OSPlatform.Windows) || RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
                     && Environment.ProcessorCount > 1 && SingleCoreAffinity)
                 {
-                    gameProcess.ProcessorAffinity = 2;
+                    gameProcess.ProcessorAffinity = (IntPtr)2;
                 }
             }
 

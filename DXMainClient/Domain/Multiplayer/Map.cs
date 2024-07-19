@@ -296,7 +296,7 @@ namespace DTAClient.Domain.Multiplayer
                 EnforceMaxPlayers = section.GetBooleanValue("EnforceMaxPlayers", false);
 
                 FileInfo mapFile = SafePath.GetFile(BaseFilePath);
-                PreviewPath = SafePath.CombineFilePath(SafePath.GetDirectory(mapFile.ToString()).Parent.ToString()[ProgramConstants.GamePath.Length..], FormattableString.Invariant($"{section.GetStringValue("PreviewImage", mapFile.Name)}.png"));
+                PreviewPath = SafePath.CombineFilePath(SafePath.GetDirectory(mapFile.FullName).Parent.FullName[ProgramConstants.GamePath.Length..], FormattableString.Invariant($"{section.GetStringValue("PreviewImage", mapFile.Name)}.png"));
 
                 Briefing = section.GetStringValue("Briefing", string.Empty)
                     .FromIniString()
@@ -428,7 +428,7 @@ namespace DTAClient.Domain.Multiplayer
             }
             catch (Exception ex)
             {
-                Logger.Log("Setting info for " + BaseFilePath + " failed! Reason: " + ex.Message);
+                Logger.Log("Setting info for " + BaseFilePath + " failed! Reason: " + ex.ToString());
                 PreStartup.LogException(ex);
                 return false;
             }
@@ -455,9 +455,9 @@ namespace DTAClient.Domain.Multiplayer
                         TeamStartMappings = TeamStartMapping.FromListString(teamStartMappingPreset)
                     });
                 }
-                catch (Exception e)
+                catch (Exception ex)
                 {
-                    Logger.Log($"Unable to parse team start mappings. Map: \"{Name}\", Error: {e.Message}");
+                    Logger.Log($"Unable to parse team start mappings. Map: \"{Name}\", Error: {ex.Message}");
                     TeamStartMappingPresets = new List<TeamStartMappingPreset>();
                 }
             }

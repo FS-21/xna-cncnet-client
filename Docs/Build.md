@@ -1,6 +1,6 @@
 # Build & Publish #
 
-The information below describes the steps that the default build script (Build-All.ps1) performs.
+The information below describes the steps that the default build script (build.ps1) performs.
 
 Game configurations
 -------------------
@@ -30,10 +30,10 @@ TargetFramework configurations
 For each Engine configuration one or more TargetFrameworks will be build:
 
 UniversalGL:
-* net7.0
+* net8.0
 
 WindowsDX, WindowsGL & WindowsXNA:
-* net7.0-windows
+* net48
 
 Overview of the Engine configurations differences:
 

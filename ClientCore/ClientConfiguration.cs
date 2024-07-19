@@ -4,7 +4,6 @@ using Rampastring.Tools;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
-using System.Collections.Generic;
 using ClientCore.I18N;
 using ClientCore.Extensions;
 
@@ -21,12 +20,14 @@ namespace ClientCore
         private const string CLIENT_SETTINGS = "DTACnCNetClient.ini";
         private const string GAME_OPTIONS = "GameOptions.ini";
         private const string CLIENT_DEFS = "ClientDefinitions.ini";
+        private const string NETWORK_DEFS = "NetworkDefinitions.ini";
 
         private static ClientConfiguration _instance;
 
         private IniFile gameOptions_ini;
         private IniFile DTACnCNetClient_ini;
         private IniFile clientDefinitionsIni;
+        private IniFile networkDefinitionsIni;
 
         protected ClientConfiguration()
         {
@@ -37,7 +38,7 @@ namespace ClientCore
 
             FileInfo clientDefinitionsFile = SafePath.GetFile(baseResourceDirectory.FullName, CLIENT_DEFS);
 
-            if (clientDefinitionsFile is null)
+            if (!(clientDefinitionsFile?.Exists ?? false))
                 throw new FileNotFoundException($"Couldn't find {CLIENT_DEFS} at {baseResourceDirectory}. Please verify that you're running the client from the correct directory.");
 
             clientDefinitionsIni = new IniFile(clientDefinitionsFile.FullName);
@@ -45,6 +46,8 @@ namespace ClientCore
             DTACnCNetClient_ini = new IniFile(SafePath.CombineFilePath(ProgramConstants.GetResourcePath(), CLIENT_SETTINGS));
 
             gameOptions_ini = new IniFile(SafePath.CombineFilePath(baseResourceDirectory.FullName, GAME_OPTIONS));
+
+            networkDefinitionsIni = new IniFile(SafePath.CombineFilePath(ProgramConstants.GetResourcePath(), NETWORK_DEFS));
         }
 
         /// <summary>
@@ -100,7 +103,7 @@ namespace ClientCore
 
         public string AltUIBackgroundColor => DTACnCNetClient_ini.GetStringValue(GENERAL, "AltUIBackgroundColor", "196,196,196");
 
-        public string WindowBorderColor => DTACnCNetClient_ini.GetStringValue(GENERAL, "WindowBorderColor", "128,128,128"); 
+        public string WindowBorderColor => DTACnCNetClient_ini.GetStringValue(GENERAL, "WindowBorderColor", "128,128,128");
 
         public string PanelBorderColor => DTACnCNetClient_ini.GetStringValue(GENERAL, "PanelBorderColor", "255,255,255");
 
@@ -278,24 +281,30 @@ namespace ClientCore
         private List<TranslationGameFile> ParseTranslationGameFiles()
         {
             List<TranslationGameFile> gameFiles = new();
+            if (!clientDefinitionsIni.SectionExists(TRANSLATIONS))
+                return gameFiles;
 
-            for (int i = 0; clientDefinitionsIni.KeyExists(TRANSLATIONS, $"GameFile{i}"); i++)
+            foreach (string key in clientDefinitionsIni.GetSectionKeys(TRANSLATIONS))
             {
                 // the syntax is GameFileX=path/to/source.file,path/to/destination.file[,checked]
-                string value = clientDefinitionsIni.GetStringValue(TRANSLATIONS, $"GameFile{i}", string.Empty);
-                string[] parts = value.Split(',', StringSplitOptions.TrimEntries);
+                // where X can be any text or number
+                if (!key.StartsWith("GameFile"))
+                    continue;
+
+                string value = clientDefinitionsIni.GetStringValue(TRANSLATIONS, key, string.Empty);
+                string[] parts = value.Split(',');
 
                 // fail explicitly if the syntax is wrong
                 if (parts.Length is < 2 or > 3
                     || (parts.Length == 3 && parts[2].ToUpperInvariant() != "CHECKED"))
                 {
-                    throw new IniParseException($"Invalid syntax for value of GameFile{i}! " +
+                    throw new IniParseException($"Invalid syntax for value of {key}! " +
                         $"Expected path/to/source.file,path/to/destination.file[,checked], read {value}.");
                 }
 
                 bool isChecked = parts.Length == 3 && parts[2].ToUpperInvariant() == "CHECKED";
 
-                gameFiles.Add(new(Source: parts[0], Target: parts[1], isChecked));
+                gameFiles.Add(new(Source: parts[0].Trim(), Target: parts[1].Trim(), isChecked));
             }
 
             return gameFiles;
@@ -380,17 +389,86 @@ namespace ClientCore
 
         #endregion
 
+        #region Network definitions
+
+        public string CnCNetTunnelListURL => networkDefinitionsIni.GetStringValue(SETTINGS, "CnCNetTunnelListURL", "http://cncnet.org/master-list");
+
+        public string CnCNetPlayerCountURL => networkDefinitionsIni.GetStringValue(SETTINGS, "CnCNetPlayerCountURL", "http://api.cncnet.org/status");
+
+        public string CnCNetMapDBDownloadURL => networkDefinitionsIni.GetStringValue(SETTINGS, "CnCNetMapDBDownloadURL", "http://mapdb.cncnet.org");
+
+        public string CnCNetMapDBUploadURL => networkDefinitionsIni.GetStringValue(SETTINGS, "CnCNetMapDBUploadURL", "http://mapdb.cncnet.org/upload");
+
+        public bool DisableDiscordIntegration => networkDefinitionsIni.GetBooleanValue(SETTINGS, "DisableDiscordIntegration", false);
+
+        public List<string> IRCServers => GetIRCServers();
+
+        #endregion
+
+        public List<string> GetIRCServers()
+        {
+            List<string> servers = [];
+
+            IniSection serversSection = networkDefinitionsIni.GetSection("IRCServers");
+            if (serversSection != null)
+                foreach ((_, string value) in serversSection.Keys)
+                    if (!string.IsNullOrWhiteSpace(value))
+                        servers.Add(value);
+
+            return servers;
+        }
+
+        public bool DiscordIntegrationGloballyDisabled => string.IsNullOrWhiteSpace(DiscordAppId) || DisableDiscordIntegration;
+        
         public OSVersion GetOperatingSystemVersion()
         {
+#if NETFRAMEWORK
+            // OperatingSystem.IsWindowsVersionAtLeast() is the preferred API but is not supported on earlier .NET versions
+            if (Environment.OSVersion.Platform == PlatformID.Win32NT)
+            {
+                Version osVersion = Environment.OSVersion.Version;
+
+                if (osVersion.Major <= 4)
+                    return OSVersion.UNKNOWN;
+
+                if (osVersion.Major == 5)
+                    return OSVersion.WINXP;
+
+                if (osVersion.Major == 6 && osVersion.Minor == 0)
+                    return OSVersion.WINVISTA;
+
+                if (osVersion.Major == 6 && osVersion.Minor <= 1)
+                    return OSVersion.WIN7;
+
+                return OSVersion.WIN810;
+            }
+
+            if (ProgramConstants.ISMONO)
+                return OSVersion.UNIX;
+
+            // http://mono.wikia.com/wiki/Detecting_the_execution_platform
+            int p = (int)Environment.OSVersion.Platform;
+            if (p == 4 || p == 6 || p == 128)
+                return OSVersion.UNIX;
+
+            return OSVersion.UNKNOWN;
+#else
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
-                if (OperatingSystem.IsWindowsVersionAtLeast(6, 3))
+                if (OperatingSystem.IsWindowsVersionAtLeast(6, 2))
                     return OSVersion.WIN810;
-
-                return OSVersion.WIN7;
+                else if (OperatingSystem.IsWindowsVersionAtLeast(6, 1))
+                    return OSVersion.WIN7;
+                else if (OperatingSystem.IsWindowsVersionAtLeast(6, 0))
+                    return OSVersion.WINVISTA;
+                else if (OperatingSystem.IsWindowsVersionAtLeast(5, 0))
+                    return OSVersion.WINXP;
+                else
+                    return OSVersion.UNKNOWN;
             }
 
             return OSVersion.UNIX;
+#endif
         }
     }
 
