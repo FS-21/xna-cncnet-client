@@ -41,7 +41,7 @@ namespace DTAClient.Domain.Multiplayer
         /// <param name="random">Random number generator.</param>
         /// <param name="disallowedSideArray">A bool array that determines which side indexes are disallowed by game options.</param>
         public void RandomizeSide(PlayerInfo pInfo, int sideCount, Random random,
-            bool[] disallowedSideArray, List<int[]> randomSelectors, int randomCount)
+            bool[] disallowedSideArray, List<int[]> randomSelectors, int randomCount, List<int[]> SubSidesSelectors = null)
         {
             if (pInfo.SideId == 0 || pInfo.SideId == sideCount + randomCount)
             {
@@ -69,6 +69,18 @@ namespace DTAClient.Domain.Multiplayer
                     SideIndex = sideId;
                 }
                 else SideIndex = pInfo.SideId - randomCount; // The player has selected a side
+            }
+
+            // Check if the valid selected side has sub-sides ("[Countries]" in Red Alert 2) and pick one random.
+            // The first sub-side item should be the same of the "Sides=" list.
+            // If we duplicate the index we can be use it for increasing the % selection of a sub-side.
+            if (SubSidesSelectors.Count > 0 && SideIndex >= 0 && SideIndex < sideCount)
+            {
+                if (SubSidesSelectors[SideIndex].Length > 0)
+                {
+                    int tmpIdx = random.Next(0, SubSidesSelectors[SideIndex].Length);
+                    SideIndex = SubSidesSelectors[SideIndex][tmpIdx];
+                }
             }
         }
 
