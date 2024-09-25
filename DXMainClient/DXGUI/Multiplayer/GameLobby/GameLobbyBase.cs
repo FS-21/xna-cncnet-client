@@ -2121,6 +2121,8 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
 
                 MapPreviewBox.GameModeMap = null;
 
+                OnGameOptionChanged();
+
                 return;
             }
 
