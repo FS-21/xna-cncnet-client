@@ -58,6 +58,7 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
             this.gameCollection = gameCollection;
             this.cncnetUserData = cncnetUserData;
             this.pmWindow = pmWindow;
+            gameHostInactiveCheck = new GameHostInactiveCheck(WindowManager);
 
             ctcpCommandHandlers = new CommandHandlerBase[]
             {
@@ -140,6 +141,8 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
 
         private MapSharingConfirmationPanel mapSharingConfirmationPanel;
 
+        private readonly GameHostInactiveCheck gameHostInactiveCheck;
+
         /// <summary>
         /// The SHA1 of the latest selected map.
         /// Used for map sharing.
@@ -168,6 +171,8 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
             IniNameOverride = nameof(CnCNetGameLobby);
             base.Initialize();
 
+            MouseMove += (sender, args) => gameHostInactiveCheck.Reset();
+
             btnChangeTunnel = FindChild<XNAClientButton>(nameof(btnChangeTunnel));
             btnChangeTunnel.LeftClick += BtnChangeTunnel_LeftClick;
 
@@ -176,6 +181,8 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
             gameBroadcastTimer.Interval = TimeSpan.FromSeconds(GAME_BROADCAST_INTERVAL);
             gameBroadcastTimer.Enabled = false;
             gameBroadcastTimer.TimeElapsed += GameBroadcastTimer_TimeElapsed;
+
+            gameHostInactiveCheck.CloseEvent += GameHostInactiveCheckCloseEvent;
 
             tunnelSelectionWindow = new TunnelSelectionWindow(WindowManager, tunnelHandler);
             tunnelSelectionWindow.Initialize();
@@ -235,6 +242,7 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
                 RandomSeed = new Random().Next();
                 RefreshMapSelectionUI();
                 btnChangeTunnel.Enable();
+                StartInactiveCheck();
             }
             else
             {
@@ -253,6 +261,17 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
         }
 
         private void TunnelHandler_CurrentTunnelPinged(object sender, EventArgs e) => UpdatePing();
+
+        private void GameHostInactiveCheckCloseEvent(object sender, EventArgs e) => LeaveGameLobby();
+
+        public void StartInactiveCheck()
+        {
+            if (!ClientConfiguration.Instance.InactiveHostKickEnabled || isCustomPassword)
+                return;
+            gameHostInactiveCheck.Start();
+        }
+
+        public void StopInactiveCheck() => gameHostInactiveCheck.Stop();
 
         public void OnJoined()
         {
@@ -396,6 +415,7 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
         {
             if (IsHost)
             {
+                StopInactiveCheck();
                 closed = true;
                 BroadcastGame();
             }
@@ -745,9 +765,15 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
             if (color < 0 || color > MPColors.Count)
                 return;
 
-            var disallowedSides = GetDisallowedSides();
+            var disallowedSides = GetDisallowedSides().ToList();
 
-            if (side > 0 && side <= SideCount && disallowedSides[side - 1])
+            // Disallowed sides from client, maps, or game modes do not take random selectors into account
+            // So, we need to insert "false" for each random at the beginning of this list AFTER getting them
+            // from client, maps, or game modes.
+            for(int i = 0; i < RandomSelectorCount; i++)
+                disallowedSides.Insert(0, false);
+
+            if (side > 0 && side <= SideCount && disallowedSides[side])
                 return;
 
             if (Map.CoopInfo != null)
@@ -1240,6 +1266,8 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
                 BroadcastPlayerOptions();
                 BroadcastPlayerExtraOptions();
 
+                StartInactiveCheck();
+
                 if (Players.Count < playerLimit)
                     UnlockGame(true);
             }
@@ -1307,6 +1335,8 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
                 channel.SendCTCPMessage(CHEAT_DETECTED_MESSAGE, QueuedMessageType.INSTANT_MESSAGE, 0);
                 HandleCheatDetectedMessage(ProgramConstants.PLAYERNAME);
             }
+
+            StopInactiveCheck();
 
             base.StartGame();
         }
