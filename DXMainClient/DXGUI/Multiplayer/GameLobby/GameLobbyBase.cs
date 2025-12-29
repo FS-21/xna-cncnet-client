@@ -179,6 +179,7 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
         protected int RandomSelectorCount { get; private set; } = 1;
 
         protected List<int[]> RandomSelectors = new List<int[]>();
+        protected List<int[]> SubSidesSelectors = new List<int[]>();
 
         private readonly bool isMultiplayer = false;
 
@@ -1020,6 +1021,8 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
             string[] sides = ClientConfiguration.Instance.Sides.Split(',').ToArray();
             SideCount = sides.Length;
 
+            GetSubSidesSelectors(SubSidesSelectors);
+
             List<string> selectorNames = new();
             GetRandomSelectors(selectorNames, RandomSelectors);
             RandomSelectorCount = RandomSelectors.Count + 1;
@@ -1236,6 +1239,35 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
                 {
                     selectorNames.Add(randomSelector);
                     selectorSides.Add(randomSides.ToArray());
+                }
+            }
+        }
+
+        /// <summary>
+        /// Loads random Sub-sides selectors from GameOptions.ini
+        /// </summary>
+        /// <param name="selectorSubSides">Sub-sides indexes, the main side will be replaced radomly by one of the list</param>
+        private void GetSubSidesSelectors(List<int[]> selectorSubSides)
+        {
+            List<string> keys = GameOptionsIni.GetSectionKeys("SubSidesSelectors");
+
+            if (keys == null)
+                return;
+
+            foreach (string randomSelector in keys)
+            {
+                List<int> randomSubSides = new List<int>();
+                try
+                {
+                    string[] tmp = GameOptionsIni.GetStringValue("SubSidesSelectors", randomSelector, string.Empty).Split(',');
+                    randomSubSides = Array.ConvertAll<string, int>(tmp, int.Parse).ToList();
+                    randomSubSides.RemoveAll(x => (x < 0));
+                }
+                catch (FormatException) { }
+
+                if (randomSubSides.Count > 0)
+                {
+                    selectorSubSides.Add(randomSubSides.ToArray());
                 }
             }
         }
@@ -1546,7 +1578,7 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
                     disallowedSides = GetDisallowedSidesForGroup(forHumanPlayers:false);
                 }
 
-                pHouseInfo.RandomizeSide(pInfo, SideCount, pseudoRandom, disallowedSides, RandomSelectors, RandomSelectorCount);
+                pHouseInfo.RandomizeSide(pInfo, SideCount, pseudoRandom, disallowedSides, RandomSelectors, RandomSelectorCount, SubSidesSelectors);
 
                 pHouseInfo.RandomizeColor(pInfo, freeColors, MPColors, pseudoRandom);
                 pHouseInfo.RandomizeStart(pInfo, pseudoRandom, freeStartingLocations, takenStartingLocations, teamStartMappings.Any());
