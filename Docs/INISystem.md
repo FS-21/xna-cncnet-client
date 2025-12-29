@@ -501,6 +501,10 @@ $Width=50        ; integer, the Width of the control
 $Height=10       ; integer, the Height of the control  
 $TextAnchor=LEFT ; enum (NONE | LEFT | RIGHT | HORIZONTAL_CENTER | TOP | BOTTOM | VERTICAL_CENTER),
                  ;          this will set a text anchor in label draw box.
+$Toggles=        ; comma-separated strings, 
+                 ;          list of names of controls to toggle visibility of when 
+				 ;          button is pressed or checkbox is enabled,  only works
+				 ;          for XNAButton/XNACheckBox or derivative types.
 ```
 
 ### Dynamic Control Property Examples
