@@ -15,6 +15,8 @@
 
 namespace ClientUpdater;
 
+using ClientCore.Extensions;
+
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -23,7 +25,9 @@ using System.Net.Http;
 using System.Net.Http.Handlers;
 using System.Threading;
 using System.Threading.Tasks;
+
 using ClientUpdater.Compression;
+
 using Rampastring.Tools;
 
 /// <summary>
@@ -115,7 +119,7 @@ public class CustomComponent
     /// </summary>
     public CustomComponent(string guiName, string iniName, string downloadPath, string localPath, bool isDownloadPathAbsolute = false, bool noArchiveExtensionForDownloadPath = false)
     {
-        GUIName = guiName;
+        GUIName = guiName.L10N($"INI:CustomComponents:{iniName}:UIName");
         ININame = iniName;
         LocalPath = localPath;
         DownloadPath = downloadPath;
@@ -160,7 +164,11 @@ public class CustomComponent
 #if NETFRAMEWORK
             progressMessageHandler = new(new HttpClientHandler
             {
-                AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate
+                AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate,
+                SslProtocols = System.Security.Authentication.SslProtocols.Tls |
+                    System.Security.Authentication.SslProtocols.Tls11 |
+                    System.Security.Authentication.SslProtocols.Tls12 |
+                    System.Security.Authentication.SslProtocols.Tls13,
             });
 
             using var httpClient = new HttpClient(progressMessageHandler, true);
@@ -204,7 +212,7 @@ public class CustomComponent
             }
 
             var version = new IniFile(versionFileName);
-            string[] tmp = version.GetStringValue("AddOns", ININame, string.Empty).Split(',');
+            string[] tmp = version.GetStringListValue("AddOns", ININame, string.Empty);
             Updater.GetArchiveInfo(version, LocalPath, out string archiveID, out int archiveSize);
             UpdaterFileInfo info = Updater.CreateFileInfo(finalFileName, tmp[0], Conversions.IntFromString(tmp[1], 0), archiveID, archiveSize);
 
@@ -377,7 +385,10 @@ public class CustomComponent
             foreach (string filename in filesToCleanup)
             {
                 if (File.Exists(filename))
+                {
+                    new FileInfo(filename).IsReadOnly = false;
                     File.Delete(filename);
+                }
             }
         }
         catch (Exception)

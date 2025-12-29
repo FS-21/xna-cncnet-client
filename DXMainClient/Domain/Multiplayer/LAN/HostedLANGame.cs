@@ -1,5 +1,5 @@
 ﻿using ClientCore;
-using ClientCore.CnCNet5;
+using DTAClient.Domain.Multiplayer.CnCNet;
 using DTAClient.Domain.Multiplayer;
 using Rampastring.Tools;
 using System;
@@ -24,7 +24,7 @@ namespace DTAClient.Domain.LAN
 
         public bool SetDataFromStringArray(GameCollection gc, string[] parameters)
         {
-            if (parameters.Length != 9)
+            if (parameters.Length != 10)
             {
                 Logger.Log("Ignoring LAN GAME message because of an incorrect number of parameters.");
                 return false;
@@ -36,6 +36,8 @@ namespace DTAClient.Domain.LAN
             GameVersion = parameters[1];
             Incompatible = GameVersion != ProgramConstants.GAME_VERSION;
             Game = gc.GameList.Find(g => g.InternalName.ToUpperInvariant() == parameters[2]);
+            if (Game == null)
+                return false;
             Map = parameters[3];
             GameMode = parameters[4];
             LoadedGameID = parameters[5];
@@ -49,6 +51,7 @@ namespace DTAClient.Domain.LAN
             LastRefreshTime = DateTime.Now;
             TimeWithoutRefresh = TimeSpan.Zero;
             RoomName = HostName + "'s Game";
+            MapHash = parameters[9];
 
             return true;
         }

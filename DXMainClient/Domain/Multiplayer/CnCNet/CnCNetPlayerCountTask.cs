@@ -22,7 +22,9 @@ namespace DTAClient.Domain.Multiplayer.CnCNet
         public static void InitializeService(CancellationTokenSource cts)
         {
             cncnetLiveStatusIdentifier = ClientConfiguration.Instance.CnCNetLiveStatusIdentifier;
-            PlayerCount = GetCnCNetPlayerCount();
+            
+            // This call is synchronous. Therefore, we use a short timeout to avoid blocking the main thread for too long.
+            PlayerCount = GetCnCNetPlayerCount(timeoutMilliseconds: 1000);
 
             CnCNetGameCountUpdated?.Invoke(null, new PlayerCountEventArgs(PlayerCount));
             ThreadPool.QueueUserWorkItem(new WaitCallback(RunService), cts);
@@ -41,22 +43,22 @@ namespace DTAClient.Domain.Multiplayer.CnCNet
                 }
                 else
                 {
-                    CnCNetGameCountUpdated?.Invoke(null, new PlayerCountEventArgs(GetCnCNetPlayerCount()));
+                    CnCNetGameCountUpdated?.Invoke(null, new PlayerCountEventArgs(GetCnCNetPlayerCount(timeoutMilliseconds: 5000)));
                 }
             }
         }
 
-        private static int GetCnCNetPlayerCount()
+        private static int GetCnCNetPlayerCount(int timeoutMilliseconds = 5000)
         {
             try
             {
                 // Don't fetch the player count if it is explicitly disabled
                 // For example, the official CnCNet server might be unavailable/unstable in a country with Internet censorship,
-                // which causes lags in the splash screen. In the worst case, say if packets are dropped, it waits until timeouts --- 30 seconds
+                // which causes lags in the splash screen. In the worst case, say if packets are dropped, it waits until timeouts
                 if (string.IsNullOrWhiteSpace(ClientConfiguration.Instance.CnCNetPlayerCountURL))
                     return -1;
 
-                WebClient client = new WebClient();
+                WebClient client = new ExtendedWebClient(timeout: timeoutMilliseconds);
                 Stream data = client.OpenRead(ClientConfiguration.Instance.CnCNetPlayerCountURL);
 
                 string info = string.Empty;

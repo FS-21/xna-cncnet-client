@@ -1,5 +1,5 @@
 ﻿using ClientCore;
-using ClientCore.CnCNet5;
+using DTAClient.Domain.Multiplayer.CnCNet;
 using ClientGUI;
 using ClientCore.Extensions;
 using Microsoft.Xna.Framework;
@@ -49,6 +49,7 @@ namespace DTAClient.DXGUI.Multiplayer.CnCNet
             tbPlayerName.Name = "tbPlayerName";
             tbPlayerName.ClientRectangle = new Rectangle(Width - 132, 50, 120, 19);
             tbPlayerName.MaximumTextLength = ClientConfiguration.Instance.MaxNameLength;
+            tbPlayerName.IMEDisabled = true;
             string defgame = ClientConfiguration.Instance.LocalGame;
 
             lblPlayerName = new XNALabel(WindowManager);

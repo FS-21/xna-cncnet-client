@@ -10,7 +10,7 @@ Updater-Related Files
 
 ### Distributable Files
 - **Updater Configuration File** (`Resources/UpdaterConfig.ini`, included with [default resources](../DXMainClient/Resources/DTA) in the client repository): Client [updater configuration](#updater-configuration) file which sets the download mirrors for the updater and available custom component info. If no such file is found, client falls back to using legacy `updateconfig.ini` which uses a different syntax and does not allow setting custom component info.
-- **Second-Stage Updater** (`Resources/Updater/SecondStageUpdater.dll`, included with [default resources](../DXMainClient/Resources/DTA) in the client repository): A second-stage updater executable that copies the files to their correct places after they've all been downloaded and then launches the client again after it is done. Client launcher executable is read from `LauncherExe` key in `Resources/ClientDefinitions.ini`, if it is not present or cannot be read for any other reason the client will not automatically restart after the second-stage updater has finished.
+- **Second-Stage Updater** (`Resources/Binaries/Updater/SecondStageUpdater.exe`, now belongs to a part of the client binaries: A second-stage updater executable that copies the files to their correct places after they've all been downloaded and then launches the client again after it is done. Client launcher executable is read from `LauncherExe` key in `Resources/ClientDefinitions.ini`, if it is not present or cannot be read for any other reason the client will not automatically restart after the second-stage updater has finished.
 
 Basic Usage
 -----------
@@ -50,6 +50,9 @@ These are set under `[Options]` in `VersionConfig.ini`.
 - `RecursiveDirectorySearch`: If set, will go through every subdirectory recursively for directories given in `[Include]`.
 - `IncludeOnlyChangedFiles`: If set, version file writer will always create two version files - one with everything included (`version_base`) and the proper, actual version file with only changed files (`version`). Note that `version_base` should be kept around as it is used to compare which files have been changed next time version file writer is ran.
 - `CopyArchivedOriginalFiles`: If set, original versions of archived files will also be copied to copied files directory.
+- `ExcludeHiddenAndSystemFiles`: If set, any directories (including all files and subdirectories in them, regardless of any other settings) and files flagged as hidden or system protected will be excluded. This also defaults to `true`.
+- `ApplyTimestampOnVersion`: If set, the mod version string is treated as [.NET timestamp/datetime format string](https://learn.microsoft.com/en-us/dotnet/standard/base-types/custom-date-and-time-format-strings) with current local time applied on it.
+- `NoCopyMode`: If set, no files will be copied whatsoever, only version file(s) are generated. Setting this also disables archived files feature regardless of other settings.
 
 #### Updater Version & Manual Download URL
 Setting `[UpdaterVersion]` in `VersionConfig.ini` writes this information to the `version` file and allows developers to control which versions are allowed to download files from the version info through the client. Mismatching updater versions between local and server version files will suggest users to download update manually through updater status message. Absent or malformed updater version (both local & server) is equivalent to `N/A` and updater will bypass the mismatch check entirely if server  updater version is set to this or absent.

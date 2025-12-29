@@ -17,6 +17,7 @@ using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 using ClientCore.I18N;
 using System.Globalization;
+using System.Security;
 using System.Transactions;
 
 namespace DTAClient
@@ -87,10 +88,20 @@ namespace DTAClient
             if (!clientUserFilesDirectory.Exists)
                 clientUserFilesDirectory.Create();
 
-            MainClientConstants.Initialize();
-
             Logger.Log("***Logfile for " + MainClientConstants.GAME_NAME_LONG + " client***");
-            Logger.Log("Client version: " + Assembly.GetAssembly(typeof(PreStartup)).GetName().Version);
+
+            string clientVersion = GitVersionInformation.AssemblySemVer;
+#if DEVELOPMENT_BUILD
+            clientVersion = $"{GitVersionInformation.CommitDate} {GitVersionInformation.BranchName}@{GitVersionInformation.ShortSha}";
+#endif
+
+            Logger.Log($"Client version: {clientVersion}");
+            Logger.Log(GitVersionInformation.InformationalVersion);
+
+#if DEVELOPMENT_BUILD
+            Logger.Log("This is a development build of the client. Stability and reliability may not be fully guaranteed.");
+#endif
+            MainClientConstants.Initialize();
 
             // Log information about given startup params
             if (parameters.NoAudio)
@@ -164,7 +175,7 @@ namespace DTAClient
                     // Lookup all compile-time available strings
                     ClientCore.Generated.TranslationNotifier.Register();
                     ClientGUI.Generated.TranslationNotifier.Register();
-                    DTAConfig.Generated.TranslationNotifier.Register();
+                    ClientUpdater.Generated.TranslationNotifier.Register();
                     DTAClient.Generated.TranslationNotifier.Register();
                 }
             }
@@ -222,16 +233,16 @@ namespace DTAClient
             Logger.Log("Type: " + ex.GetType());
             Logger.Log("Message: " + ex.Message);
             Logger.Log("Source: " + ex.Source);
-            Logger.Log("TargetSite.Name: " + ex.TargetSite.Name);
+            Logger.Log("TargetSite.Name: " + ex.TargetSite?.Name);
             Logger.Log("Stacktrace: " + ex.StackTrace);
 
             if (ex.InnerException is not null)
                 LogException(ex.InnerException, true);
         }
 
-        static void HandleException(object sender, Exception ex)
+        public static void HandleException(object sender, Exception ex)
         {
-            LogException(ex);
+            LogException(ex, innerException: false);
 
             string errorLogPath = SafePath.CombineFilePath(ProgramConstants.ClientUserFilesPath, "ClientCrashLogs", FormattableString.Invariant($"ClientCrashLog{DateTime.Now.ToString("_yyyy_MM_dd_HH_mm")}.txt"));
             bool crashLogCopied = false;
@@ -334,11 +345,19 @@ namespace DTAClient
                         if (ntAccount == null)
                             continue;
 
-                        if (principal.IsInRole(ntAccount.Value))
+                        try
                         {
-                            if (fsAccessRule.AccessControlType == AccessControlType.Deny)
-                                return false;
-                            isInRoleWithAccess = true;
+                            if (principal.IsInRole(ntAccount.Value))
+                            {
+                                if (fsAccessRule.AccessControlType == AccessControlType.Deny)
+                                    return false;
+                                isInRoleWithAccess = true;
+                            }
+                        }
+                        catch (SecurityException)
+                        {
+                            //IsInRole may throw for selected roles when running in Wine, keep iterating other rules 
+                            continue;
                         }
                     }
                 }

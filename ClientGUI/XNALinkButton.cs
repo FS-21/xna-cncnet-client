@@ -11,6 +11,7 @@ namespace ClientGUI
 
         public string URL { get; set; }
         public string UnixURL { get; set; }
+        public string Arguments { get; set; }
 
         protected override void ParseControlINIAttribute(IniFile iniFile, string key, string value)
         {
@@ -26,19 +27,27 @@ namespace ClientGUI
                 return;
             }
 
+            if (key == "Arguments")
+            {
+                Arguments = value;
+                return;
+            }
+
             base.ParseControlINIAttribute(iniFile, key, value);
         }
 
-        public override void OnLeftClick()
+        public override void OnLeftClick(InputEventArgs inputEventArgs)
         {
+            inputEventArgs.Handled = true;
+            
             OSVersion osVersion = ClientConfiguration.Instance.GetOperatingSystemVersion();
 
             if (osVersion == OSVersion.UNIX && !string.IsNullOrEmpty(UnixURL))
-                ProcessLauncher.StartShellProcess(UnixURL);
+                ProcessLauncher.StartShellProcess(UnixURL, Arguments);
             else if (!string.IsNullOrEmpty(URL))
-                ProcessLauncher.StartShellProcess(URL);
+                ProcessLauncher.StartShellProcess(URL, Arguments);
 
-            base.OnLeftClick();
+            base.OnLeftClick(inputEventArgs);
         }
     }
 }

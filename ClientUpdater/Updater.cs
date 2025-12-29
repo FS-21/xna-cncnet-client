@@ -30,7 +30,10 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+
 using ClientUpdater.Compression;
+using ClientCore.Extensions;
+
 using Rampastring.Tools;
 
 public static class Updater
@@ -140,7 +143,7 @@ public static class Updater
     private static IniFile settingsINI;
     private static List<CustomComponent> customComponents;
     private static List<UpdateMirror> updateMirrors;
-    private static string[] ignoreMasks = new string[] { ".rtf", ".txt", "Theme.ini", "gui_settings.xml" };
+    private static string[] ignoreMasks = [".rtf", ".txt", "Theme.ini", "gui_settings.xml"];
 
     // File infos.
     private static readonly List<UpdaterFileInfo> FileInfosToDownload = new();
@@ -150,7 +153,11 @@ public static class Updater
 #if NETFRAMEWORK
     private static readonly ProgressMessageHandler SharedProgressMessageHandler = new(new HttpClientHandler
     {
-        AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate
+        AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate,
+        SslProtocols = System.Security.Authentication.SslProtocols.Tls |
+            System.Security.Authentication.SslProtocols.Tls11 |
+            System.Security.Authentication.SslProtocols.Tls12 |
+            System.Security.Authentication.SslProtocols.Tls13,
     });
 
     private static readonly HttpClient SharedHttpClient = new(SharedProgressMessageHandler, true);
@@ -251,11 +258,11 @@ public static class Updater
 
         if (sectionKeys != null)
         {
+            char[] separator = new char[] { ',' };
             foreach (string str in sectionKeys)
             {
-                char[] separator = new char[] { ',' };
-                string[] strArray = file.GetStringValue("FileVersions", str, string.Empty).Split(separator);
-                string[] strArrayArch = file.GetStringValue("ArchivedFiles", str, string.Empty).Split(separator);
+                string[] strArray = file.GetStringListValue("FileVersions", str, string.Empty, separator);
+                string[] strArrayArch = file.GetStringListValue("ArchivedFiles", str, string.Empty, separator);
                 bool archiveAvailable = strArrayArch is { Length: >= 2 };
 
                 if (strArray.Length >= 2)
@@ -405,12 +412,12 @@ public static class Updater
         httpClient.DefaultRequestHeaders.UserAgent.Clear();
 
         if (GameVersion != "N/A")
-            httpClient.DefaultRequestHeaders.UserAgent.Add(new(LocalGame, GameVersion));
+            httpClient.DefaultRequestHeaders.UserAgent.Add(new(LocalGame.Replace(' ', '-'), GameVersion.Replace(' ', '-')));
 
         if (UpdaterVersion != "N/A")
-            httpClient.DefaultRequestHeaders.UserAgent.Add(new(nameof(Updater), UpdaterVersion));
+            httpClient.DefaultRequestHeaders.UserAgent.Add(new(nameof(Updater), UpdaterVersion.Replace(' ', '-')));
 
-        httpClient.DefaultRequestHeaders.UserAgent.Add(new("Client", Assembly.GetEntryAssembly().GetName().Version.ToString()));
+        httpClient.DefaultRequestHeaders.UserAgent.Add(new("Client", GitVersionInformation.AssemblySemVer));
     }
 
     /// <summary>
@@ -429,6 +436,8 @@ public static class Updater
         {
             mre.Set();
         };
+        if (fileInfo.Exists)
+            fileInfo.IsReadOnly = false;
         fileInfo.Delete();
         mre.Wait(timeout);
     }
@@ -478,7 +487,8 @@ public static class Updater
         else
         {
             var updaterConfig = new IniFile(configFile.FullName);
-            ignoreMasks = updaterConfig.GetStringValue("Settings", "IgnoreMasks", string.Join(",", ignoreMasks)).Split(',');
+            string maskString = updaterConfig.GetStringValue("Settings", "IgnoreMasks", string.Join(",", ignoreMasks));
+            ignoreMasks = maskString.Split(new char[] { ',', ' ' }, StringSplitOptions.RemoveEmptyEntries);
 
             List<string> keys = updaterConfig.GetSectionKeys("DownloadMirrors");
 
@@ -613,7 +623,7 @@ public static class Updater
 
                 UpdateUserAgent(SharedHttpClient);
 
-                FileInfo downloadFile = SafePath.GetFile(GamePath, FormattableString.Invariant($"{VERSION_FILE}_u"));
+                FileInfo versionFile = SafePath.GetFile(GamePath, FormattableString.Invariant($"{VERSION_FILE}_u"));
 
                 while (currentUpdateMirrorIndex < updateMirrors.Count)
                 {
@@ -621,7 +631,7 @@ public static class Updater
                     {
                         Logger.Log("Updater: Trying to connect to update mirror " + updateMirrors[currentUpdateMirrorIndex].URL);
 
-                        FileStream fileStream = new FileStream(downloadFile.FullName, FileMode.Create, FileAccess.Write, FileShare.None, 4096, FileOptions.Asynchronous);
+                        FileStream fileStream = new FileStream(versionFile.FullName, FileMode.Create, FileAccess.Write, FileShare.None, 4096, FileOptions.Asynchronous);
 
                         using (fileStream)
                         {
@@ -637,7 +647,7 @@ public static class Updater
                     }
                     catch (Exception e)
                     {
-                        Logger.Log("Updater: Error connecting to update mirror. Error message: " + e.Message);
+                        Logger.Log("Updater: Error connecting to update mirror. Error message: " + e.ToString());
                         Logger.Log("Updater: Seeking other mirrors...");
                         currentUpdateMirrorIndex++;
 
@@ -650,7 +660,7 @@ public static class Updater
                 }
 
                 Logger.Log("Updater: Downloaded version information.");
-                var version = new IniFile(downloadFile.FullName);
+                var version = new IniFile(versionFile.FullName);
                 string versionString = version.GetStringValue("DTA", "Version", string.Empty);
                 string updaterVersionString = version.GetStringValue("DTA", "UpdaterVersion", "N/A");
                 string manualDownloadURLString = version.GetStringValue("DTA", "ManualDownloadURL", string.Empty);
@@ -722,7 +732,7 @@ public static class Updater
                 if (versionString == GameVersion)
                 {
                     VersionState = VersionState.UPTODATE;
-                    downloadFile.Delete();
+                    versionFile.Delete();
                     DoFileIdentifiersUpdatedEvent();
 
                     if (AreCustomComponentsOutdated())
@@ -736,7 +746,7 @@ public static class Updater
                         VersionState = VersionState.OUTDATED;
                         ManualUpdateRequired = true;
                         ManualDownloadURL = manualDownloadURLString;
-                        downloadFile.Delete();
+                        versionFile.Delete();
                         DoFileIdentifiersUpdatedEvent();
                     }
                     else
@@ -779,7 +789,7 @@ public static class Updater
         try
         {
             string downloadFile = SafePath.CombineFilePath(GamePath, "updateexec");
-            
+
             FileStream fileStream = new FileStream(downloadFile, FileMode.Create, FileAccess.Write, FileShare.None, 4096, FileOptions.Asynchronous);
 
             using (fileStream)
@@ -811,7 +821,7 @@ public static class Updater
         try
         {
             string downloadFile = SafePath.CombineFilePath(GamePath, "preupdateexec");
-            
+
             FileStream fileStream = new FileStream(downloadFile, FileMode.Create, FileAccess.Write, FileShare.None, 4096, FileOptions.Asynchronous);
 
             using (fileStream)
@@ -851,7 +861,13 @@ public static class Updater
 
             try
             {
-                SafePath.DeleteFileIfExists(GamePath, key);
+                FileInfo fileInfo = SafePath.GetFile(GamePath, key);
+
+                if (fileInfo.Exists)
+                {
+                    fileInfo.IsReadOnly = false;
+                    fileInfo.Delete();
+                }
             }
             catch (Exception ex)
             {
@@ -869,10 +885,30 @@ public static class Updater
             {
                 Logger.Log("Updater: " + fileName + ": Renaming file '" + key + "' to '" + newFilename + "'");
 
-                FileInfo file = SafePath.GetFile(GamePath, key);
+                FileInfo srcFile = SafePath.GetFile(GamePath, key);
 
-                if (file.Exists)
-                    file.MoveTo(SafePath.CombineFilePath(GamePath, newFilename));
+                if (srcFile.Exists)
+                {
+                    bool isSrcReadOnly = srcFile.IsReadOnly;
+                    srcFile.IsReadOnly = false;
+
+                    {
+                        FileInfo destFile = SafePath.GetFile(GamePath, newFilename);
+                        if (destFile.Exists)
+                        {
+                            destFile.IsReadOnly = false;
+                            destFile.Delete();
+                        }
+                    }
+
+                    srcFile.MoveTo(SafePath.CombineFilePath(GamePath, newFilename));
+
+                    if (isSrcReadOnly)
+                    {
+                        FileInfo destFile = SafePath.GetFile(GamePath, newFilename);
+                        destFile.IsReadOnly = true;
+                    }
+                }
             }
             catch (Exception ex)
             {
@@ -890,10 +926,10 @@ public static class Updater
             {
                 Logger.Log("Updater: " + fileName + ": Renaming directory '" + key + "' to '" + newDirectoryName + "'");
 
-                DirectoryInfo directory = SafePath.GetDirectory(GamePath, key);
+                DirectoryInfo srcDirectory = SafePath.GetDirectory(GamePath, key);
 
-                if (directory.Exists)
-                    directory.MoveTo(SafePath.CombineDirectoryPath(GamePath, newDirectoryName));
+                if (srcDirectory.Exists)
+                    srcDirectory.MoveTo(SafePath.CombineDirectoryPath(GamePath, newDirectoryName));
             }
             catch (Exception ex)
             {
@@ -928,18 +964,29 @@ public static class Updater
                     FileInfo[] files = gameDirectory.GetFiles();
                     foreach (FileInfo file in files)
                     {
+                        bool isSrcReadOnly = file.IsReadOnly;
+                        file.IsReadOnly = false;
+
                         FileInfo fileToMergeInto = SafePath.GetFile(directoryToMergeInto.FullName, file.Name);
                         if (fileToMergeInto.Exists)
                         {
                             Logger.Log("Updater: " + fileName + ": Destination file '" + directoryNameToMergeInto + "/" + file.Name +
                                 "' exists, removing original source file " + directoryName + "/" + file.Name);
-                            fileToMergeInto.Delete();
+
+                            // Note: Previously, the incorrect file was deleted as of commit fc939a06ff978b51daa6563eaa15a28cf48319ec.
+
+                            // Remove the original source file
+                            file.Delete();
                         }
                         else
                         {
                             Logger.Log("Updater: " + fileName + ": Destination file '" + directoryNameToMergeInto + "/" + file.Name +
                                 "' does not exist, moving original source file " + directoryName + "/" + file.Name);
                             file.MoveTo(fileToMergeInto.FullName);
+
+                            // Resume the read-only property
+                            fileToMergeInto.Refresh();
+                            fileToMergeInto.IsReadOnly = isSrcReadOnly;
                         }
                     }
                 }
@@ -959,7 +1006,17 @@ public static class Updater
                 {
                     Logger.Log("Updater: " + fileName + ": Deleting directory '" + key + "'");
 
-                    SafePath.DeleteDirectoryIfExists(true, GamePath, key);
+                    DirectoryInfo directoryInfo = SafePath.GetDirectory(GamePath, key);
+                    if (directoryInfo.Exists)
+                    {
+                        // Unset read-only attribute from all files in the directory.
+                        foreach (FileInfo file in directoryInfo.GetFiles("*", SearchOption.AllDirectories))
+                        {
+                            file.IsReadOnly = false;
+                        }
+
+                        directoryInfo.Delete(true);
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -1300,6 +1357,8 @@ public static class Updater
                             }
 
                             // copy SecondStageUpdater dependencies
+                            // warning: for unknown reasons, `System.Runtime.CompilerServices.Unsafe.dll` file is not listed here.
+                            // Therefore, Polyfill (requiring this dll file) is excluded from the second-stage updater.
                             AssemblyName[] assemblies = Assembly.LoadFrom(secondStageUpdaterExecutable.FullName).GetReferencedAssemblies();
 
                             foreach (AssemblyName assembly in assemblies)
@@ -1531,9 +1590,9 @@ public static class Updater
     /// <returns>True if path contains any ignore masks, otherwise false.</returns>
     private static bool ContainsAnyMask(string filePath)
     {
-        foreach (string str2 in ignoreMasks)
+        foreach (string mask in ignoreMasks)
         {
-            if (filePath.Contains(str2, StringComparison.OrdinalIgnoreCase))
+            if (filePath.Contains(mask, StringComparison.OrdinalIgnoreCase))
                 return true;
         }
 
@@ -1582,16 +1641,11 @@ public static class Updater
     /// <returns>File identifier if check is successful, otherwise null.</returns>
     private static string CheckFileIdentifiers(string fileInfoFilename, string localFilename, string fileInfoIdentifier)
     {
-        string identifier;
         if (ContainsAnyMask(fileInfoFilename))
-            identifier = fileInfoIdentifier;
-        else
-            identifier = GetUniqueIdForFile(localFilename);
-
-        if (fileInfoIdentifier == identifier)
             return null;
-
-        return identifier;
+        
+        string identifier;  identifier = GetUniqueIdForFile(localFilename);
+        return fileInfoIdentifier == identifier ? null : identifier;
     }
 
     public static event NoParamEventHandler FileIdentifiersUpdated;
